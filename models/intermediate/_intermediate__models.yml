@@ -1,0 +1,274 @@
+version: 2
+
+models:
+  - name: int_opportunities_enriched
+    description: >
+      One row per opportunity with the business logic every downstream metric needs:
+      reporting channel, stage order, USD amounts, sales cycle days and open-pipeline
+      risk flags. Account attributes are joined later, in mart_opportunities.
+      Risk flags and the latest-date FX rate are measured against var('as_of_date')
+      (2026-09-28), the last date in the extract.
+
+    columns:
+      - name: opportunity_id
+        description: "Unique opportunity identifier. Primary key."
+        data_tests:
+          - unique
+          - not_null
+
+      - name: account_id
+        description: "Account the opportunity belongs to."
+        data_tests:
+          - not_null
+
+      - name: opportunity_name
+        description: "Display name: \"<Account Name> - <Opportunity Type>\". Not unique."
+
+      - name: owner_id
+        description: "CRM user ID of the owning account executive (AE)."
+
+      - name: owner_name
+        description: "Name of the owning AE."
+
+      - name: owner_role
+        description: "AE role: AE - Enterprise, AE - Mid-Market or AE - SMB."
+
+      - name: owner_region
+        description: "The AE's region (not necessarily the customer's)."
+
+      - name: opportunity_type
+        description: "New Business, Expansion or Pilot."
+
+      - name: lead_source
+        description: "Original CRM lead source (7 values). The detailed level beneath channel."
+
+      - name: campaign
+        description: "Specific marketing program within the lead source. Null for Outbound."
+
+      - name: channel
+        description: >
+          Reporting channel mapped from lead_source via the lead_source_channels seed:
+          Outbound, Inbound (website, content and paid search), Events, Partners or
+          Customer Referral.
+
+      - name: channel_owner
+        description: >
+          Team assumed to own the channel (Sales, Marketing, Partnerships, Customer).
+          An assumption based on common B2B practice, to be confirmed with RevOps.
+
+      - name: amount_local
+        description: "Deal amount in its original currency. Do not sum across currencies."
+
+      - name: currency
+        description: "Currency of amount_local: USD, EUR or GBP."
+
+      - name: probability_pct
+        description: "CRM win probability, 0-100, fixed by stage."
+
+      - name: usd_rate_at_close
+        description: >
+          USD per one unit of the deal's currency for the month the deal closed
+          (FRED monthly average). Null for open deals.
+
+      - name: amount_usd_at_close
+        description: >
+          Deal amount in USD at the close-month rate. Used for closed-won value, so past
+          results don't change when exchange rates move. Null for open deals.
+
+      - name: usd_rate_latest_date
+        description: "USD rate for the as-of month (September 2026). Populated for every deal."
+
+      - name: amount_usd_latest_date
+        description: "Deal amount in USD at the reporting month's FX rate (September 2026). Used for open pipeline, which has no close-month rate yet, and to compare deals from different years without exchange-rate swings."
+
+      - name: stage
+        description: "Current sales stage."
+
+      - name: stage_order
+        description: "Position of the stage in the sales process: 1 (Discovery) to 6 (Negotiation), 7 for both closed stages."
+
+      - name: stage_label
+        description: "Display label that sorts correctly as text (e.g. \"4. Pilot\")."
+
+      - name: stage_is_open
+        description: "True for the six open stages, from the opportunity_stages seed."
+
+      - name: forecast_category
+        description: "CRM forecast bucket: Pipeline, Best Case, Commit or Closed."
+
+      - name: is_closed
+        description: "True if Closed Won or Closed Lost."
+
+      - name: is_won
+        description: "True only for Closed Won."
+
+      - name: loss_reason
+        description: "Why the deal was lost. Closed Lost deals only."
+
+      - name: created_date
+        description: "Date the opportunity was created."
+
+      - name: close_date
+        description: "Actual close date for closed deals; the rep's expected close date for open deals."
+
+      - name: last_activity_date
+        description: "Date of the most recent logged activity."
+
+      - name: scoping_entered_date
+        description: "Date the deal entered Scoping. Null if it never got past Discovery."
+
+      - name: sales_cycle_days
+        description: >
+          Days from created_date to close_date for closed deals. Null for open deals.
+          Cycle length is the median of this for won deals, by segment.
+
+      - name: days_to_scoping
+        description: "Days from created_date to scoping_entered_date. Null if the deal never reached Scoping."
+
+      - name: is_missing_close_date
+        description: "Open deal with no expected close date. A data-quality check; never true in this extract."
+
+      - name: is_missing_activity_date
+        description: "Open deal with no activity date. A data-quality check; never true in this extract."
+
+      - name: is_past_due
+        description: "Open deal whose close date is before the reporting date (9/28/2026, var('as_of_date'))."
+
+      - name: is_stale
+        description: "Open deal with no activity in 14+ days between last_activity_date and the reporting date (9/28/2026)."
+
+      - name: is_at_risk
+        description: "Open deal that is past due OR stale. Always false for closed deals."
+
+      - name: is_high_risk
+        description: "Open deal that is past due AND stale."
+
+  - name: int_accounts__customer_history
+    description: >
+      One row per account, including accounts with no opportunities. The single
+      definition of each account's lifecycle: first engagement, when it became a
+      customer, pilot and expansion history, and current status. Built from staging.
+
+    columns:
+      - name: account_id
+        description: "Unique account identifier. Primary key."
+        data_tests:
+          - unique
+          - not_null
+
+      - name: first_opportunity_created_date
+        description: "Date of the account's first opportunity. Null if never engaged."
+
+      - name: first_won_date
+        description: "Close date of the account's first won opportunity of any type, including pilots."
+
+      - name: first_new_business_won_date
+        description: >
+          Close date of the account's first won New Business opportunity: the date it
+          became a customer.
+
+      - name: first_pilot_created_date
+        description: "Date the account's first pilot was created. Null if it never ran a pilot."
+
+      - name: is_customer
+        description: "True if the account has won New Business. A won pilot alone doesn't count."
+        data_tests:
+          - not_null
+
+      - name: has_won_pilot
+        description: "True if the account has won at least one pilot."
+
+      - name: has_won_expansion
+        description: "True if the account has won at least one Expansion deal."
+
+      - name: account_status
+        description: >
+          Where the account stands now, assigned in priority order: Customer (has won
+          New Business), In pipeline (not a customer, has an open opportunity), Engaged,
+          not customer (all opportunities closed lost), Never engaged (no opportunities).
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - Customer
+                  - In pipeline
+                  - Engaged, not customer
+                  - Never engaged
+
+      - name: opportunity_count
+        description: "Total opportunities on the account. 0 if never engaged."
+        data_tests:
+          - not_null
+
+      - name: won_opportunity_count
+        description: "Won opportunities of any type."
+
+      - name: open_opportunity_count
+        description: "Currently open opportunities."
+
+  - name: int_accounts_enriched
+    description: >
+      One row per account: CRM account attributes from staging combined with the
+      lifecycle fields from int_accounts__customer_history.
+
+    columns:
+      - name: account_id
+        description: "Unique account identifier. Primary key."
+        data_tests:
+          - unique
+          - not_null
+
+      - name: account_name
+        description: "Company name."
+
+      - name: segment
+        description: "Sales segment: Enterprise, Mid-Market or SMB."
+
+      - name: account_region
+        description: "The customer's region (NA, EMEA, APAC, LATAM). Renamed from region to avoid confusion with owner_region."
+
+      - name: country
+        description: "The customer's country."
+
+      - name: industry
+        description: "The customer's industry."
+
+      - name: employee_count
+        description: "Number of employees."
+
+      - name: account_created_date
+        description: "Date the account was created in the CRM."
+
+      - name: account_status
+        description: "Customer, In pipeline, Engaged, not customer, or Never engaged. See int_accounts__customer_history."
+
+      - name: is_customer
+        description: "True if the account has won New Business."
+
+      - name: first_opportunity_created_date
+        description: "Date of the account's first opportunity."
+
+      - name: first_won_date
+        description: "Close date of the first won opportunity of any type."
+
+      - name: first_new_business_won_date
+        description: "Close date of the first won New Business opportunity."
+
+      - name: first_pilot_created_date
+        description: "Date the first pilot was created."
+
+      - name: has_won_pilot
+        description: "True if the account has won a pilot."
+
+      - name: has_won_expansion
+        description: "True if the account has won an Expansion deal."
+
+      - name: opportunity_count
+        description: "Total opportunities on the account."
+
+      - name: won_opportunity_count
+        description: "Won opportunities of any type."
+
+      - name: open_opportunity_count
+        description: "Currently open opportunities."

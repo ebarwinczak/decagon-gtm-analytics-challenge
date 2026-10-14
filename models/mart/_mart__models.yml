@@ -1,0 +1,366 @@
+version: 2
+
+models:
+  - name: mart_accounts
+    description: >
+      Reporting-ready account table. One row per account (3,000), including accounts
+      with no opportunities, with account attributes, customer lifecycle and
+      opportunity activity counts.
+
+    columns:
+      - name: account_id
+        description: "Unique account identifier. Primary key."
+        data_tests:
+          - unique
+          - not_null
+
+      - name: account_name
+        description: "Company name."
+
+      - name: segment
+        description: "Sales segment: Enterprise, Mid-Market or SMB."
+
+      - name: account_region
+        description: "The customer's region: NA, EMEA, APAC or LATAM."
+
+      - name: country
+        description: "The customer's country."
+
+      - name: industry
+        description: "The customer's industry."
+
+      - name: employee_count
+        description: "Number of employees."
+
+      - name: account_created_date
+        description: "Date the account was created in the CRM."
+
+      - name: account_status
+        description: >
+          Current lifecycle status, assigned in priority order: Customer (has won New
+          Business), In pipeline (not a customer, has an open opportunity), Engaged, not
+          customer (all opportunities closed lost), Never engaged (no opportunities).
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - Customer
+                  - In pipeline
+                  - Engaged, not customer
+                  - Never engaged
+
+      - name: is_customer
+        description: "True if the account has won New Business."
+
+      - name: first_opportunity_created_date
+        description: "Date of the account's first opportunity."
+
+      - name: first_won_date
+        description: "Close date of the first won opportunity of any type, including pilots."
+
+      - name: first_new_business_won_date
+        description: "Close date of the first won New Business opportunity: the date the account became a customer."
+
+      - name: first_pilot_created_date
+        description: "Date the account's first pilot was created."
+
+      - name: has_won_pilot
+        description: "True if the account has won a pilot."
+
+      - name: has_won_expansion
+        description: "True if the account has won an Expansion deal."
+
+      - name: opportunity_count
+        description: "Total opportunities associated with the account."
+        data_tests:
+          - not_null
+
+      - name: won_opportunity_count
+        description: "Won opportunities of any type."
+
+      - name: open_opportunity_count
+        description: "Currently open opportunities."
+
+  - name: mart_opportunities
+    description: >
+      Reporting-ready opportunity table. One row per opportunity (4,722), combining
+      the deal, its account, and the account's lifecycle. Every metric in the project
+      (win rate, cycle length, channel performance, open and at-risk pipeline) can be
+      calculated from this table.
+
+    columns:
+      - name: opportunity_id
+        description: "Unique opportunity identifier. Primary key."
+        data_tests:
+          - unique
+          - not_null
+
+      - name: account_id
+        description: "Account associated with the opportunity."
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('mart_accounts')
+                field: account_id
+
+      - name: opportunity_name
+        description: "Display name: \"<Account Name> - <Opportunity Type>\". Not unique."
+
+      - name: account_name
+        description: "Company name."
+
+      - name: segment
+        description: "The account's sales segment: Enterprise, Mid-Market or SMB."
+
+      - name: account_region
+        description: "The customer's region. Use this for geography, not owner_region."
+
+      - name: country
+        description: "The customer's country."
+
+      - name: industry
+        description: "The customer's industry."
+
+      - name: employee_count
+        description: "Number of employees at the account."
+
+      - name: account_created_date
+        description: "Date the account was created in the CRM."
+
+      - name: account_status
+        description: "The account's current lifecycle status (Customer, In pipeline, Engaged, not customer, Never engaged)."
+
+      - name: is_customer
+        description: "True if the account has won New Business (as of today, not as of this deal)."
+
+      - name: first_opportunity_created_date
+        description: "Date of the account's first opportunity."
+
+      - name: first_won_date
+        description: "Close date of the account's first won opportunity of any type."
+
+      - name: first_new_business_won_date
+        description: "Close date of the account's first won New Business opportunity."
+
+      - name: first_pilot_created_date
+        description: "Date the account's first pilot was created."
+
+      - name: has_won_pilot
+        description: "True if the account has won a pilot."
+
+      - name: has_won_expansion
+        description: "True if the account has won an Expansion deal."
+
+      - name: owner_id
+        description: "CRM user ID of the owning account executive (AE)."
+
+      - name: owner_name
+        description: "Name of the owning AE."
+
+      - name: owner_role
+        description: "AE role: AE - Enterprise, AE - Mid-Market or AE - SMB."
+
+      - name: owner_region
+        description: "The AE's region (not necessarily the customer's)."
+
+      - name: opportunity_type
+        description: "New Business, Expansion or Pilot."
+
+      - name: lead_source
+        description: "Original CRM lead source (7 values)."
+
+      - name: campaign
+        description: "Specific marketing program within the lead source. Null for Outbound."
+
+      - name: channel
+        description: >
+          Standardized reporting channel: Outbound, Inbound, Events, Partners or
+          Customer Referral. Mapped from lead_source.
+        data_tests:
+          - not_null
+
+      - name: channel_owner
+        description: "Team assumed to own the channel. To be confirmed with RevOps."
+
+      - name: amount_local
+        description: "Deal amount in its original currency. Do not sum across currencies."
+
+      - name: currency
+        description: "Currency of amount_local: USD, EUR or GBP."
+
+      - name: probability_pct
+        description: "CRM win probability, 0-100, fixed by stage."
+
+      - name: usd_rate_at_close
+        description: "USD rate for the deal's close month. Null for open deals."
+
+      - name: amount_usd_at_close
+        description: "Deal amount in USD at the close-month rate. Use for closed-won value. Null for open deals."
+
+      - name: usd_rate_latest_date
+        description: "USD rate for the as-of month (September 2026)."
+
+      - name: amount_usd_latest_date
+        description: "Deal amount in USD at the reporting month's FX rate (September 2026). Used for open pipeline, which has no close-month rate yet, and to compare deals from different years without exchange-rate swings."
+        data_tests:
+          - not_null
+
+      - name: stage
+        description: "Current sales stage."
+
+      - name: stage_order
+        description: "1 (Discovery) to 6 (Negotiation); 7 for both closed stages. Use to sort stages."
+
+      - name: stage_label
+        description: "Display label that sorts correctly as text (e.g. \"4. Pilot\")."
+
+      - name: stage_is_open
+        description: "True for the six open stages."
+
+      - name: forecast_category
+        description: "CRM forecast bucket: Pipeline, Best Case, Commit or Closed."
+
+      - name: is_closed
+        description: "True if Closed Won or Closed Lost."
+
+      - name: is_won
+        description: "True only for Closed Won."
+
+      - name: loss_reason
+        description: "Why the deal was lost. Closed Lost deals only."
+
+      - name: created_date
+        description: "Date the opportunity was created."
+
+      - name: close_date
+        description: "Actual close date for closed deals; the rep's expected close date for open deals."
+
+      - name: last_activity_date
+        description: "Date of the most recent logged activity."
+
+      - name: scoping_entered_date
+        description: "Date the deal entered Scoping. Null if it never got past Discovery."
+
+      - name: sales_cycle_days
+        description: "Days from created to closed, for closed deals. Null for open deals."
+
+      - name: days_to_scoping
+        description: "Days from created to entering Scoping."
+
+      - name: is_past_due
+        description: "Open deal whose close date is before the reporting date (9/28/2026, var('as_of_date'))."
+
+      - name: is_stale
+        description: "Open deal with no activity in 14+ days between last_activity_date and the reporting date (9/28/2026)."
+
+      - name: is_at_risk
+        description: "Open deal that is past due OR stale."
+
+      - name: is_high_risk
+        description: "Open deal that is past due AND stale."
+
+  - name: rpt_segment_performance
+    description: >
+      Answers "which segments produce pipeline that closes?". One row per segment and
+      opportunity type (9 rows). Built on closed outcomes; open deals are counted in
+      total_opportunities only.
+
+    columns:
+      - name: segment
+        description: "Enterprise, Mid-Market or SMB."
+
+      - name: opportunity_type
+        description: "New Business, Expansion or Pilot."
+
+      - name: total_opportunities
+        description: "All opportunities in the group, open and closed."
+
+      - name: closed_opportunities
+        description: "Closed opportunities (won + lost). The win rate denominator."
+
+      - name: won_opportunities
+        description: "Closed Won opportunities."
+
+      - name: lost_opportunities
+        description: "Closed Lost opportunities."
+
+      - name: win_rate_pct
+        description: "Won ÷ closed, as a percentage from 0 to 100, rounded to 2 decimals. Open deals excluded."
+
+      - name: closed_won_usd
+        description: "Total value of won deals in USD at their close-month FX rates. 0 if none."
+
+      - name: median_won_sales_cycle_days
+        description: "Median days from created to closed, for won deals only. The cycle length metric."
+
+  - name: rpt_channel_performance
+    description: >
+      Answers "which channels produce pipeline that closes?". One row per channel and
+      opportunity type. Measured on closed outcomes, not pipeline created.
+      Attribution is the single CRM lead source mapped to a channel.
+
+    columns:
+      - name: channel
+        description: "Outbound, Inbound, Events, Partners or Customer Referral."
+
+      - name: opportunity_type
+        description: "New Business, Expansion or Pilot."
+
+      - name: total_opportunities
+        description: "All opportunities in the group, open and closed."
+
+      - name: closed_opportunities
+        description: "Closed opportunities (won + lost). The win rate denominator."
+
+      - name: won_opportunities
+        description: "Closed Won opportunities."
+
+      - name: lost_opportunities
+        description: "Closed Lost opportunities."
+
+      - name: win_rate_pct
+        description: "Won ÷ closed, as a percentage from 0 to 100, rounded to 2 decimals. Open deals excluded."
+
+      - name: closed_won_usd
+        description: "Total value of won deals in USD at their close-month FX rates. 0 if none."
+
+  - name: rpt_pipeline_health
+    description: >
+      Answers "where is pipeline sitting, and what's at risk?". One row per open stage
+      and segment. Open deals only, valued at the as-of month's FX rate.
+
+    columns:
+      - name: stage
+        description: "Open sales stage (Discovery through Negotiation)."
+
+      - name: stage_order
+        description: "1 (Discovery) to 6 (Negotiation). Use to sort."
+
+      - name: segment
+        description: "Enterprise, Mid-Market or SMB."
+
+      - name: open_opportunities
+        description: "Number of open deals in this stage and segment."
+
+      - name: open_pipeline_usd
+        description: "Total value of those open deals in USD."
+
+      - name: at_risk_opportunities
+        description: "Open deals that are past due OR stale."
+
+      - name: at_risk_pipeline_usd
+        description: "Value of the at-risk deals in USD. 0 if none."
+
+      - name: high_risk_opportunities
+        description: "Open deals that are past due AND stale."
+
+      - name: high_risk_pipeline_usd
+        description: "Value of the high-risk deals in USD. 0 if none."
+
+      - name: past_due_opportunities
+        description: "Open deals whose expected close date has passed."
+
+      - name: stale_opportunities
+        description: "Open deals with no activity in more than 14 days."

@@ -1,0 +1,7 @@
+decagon_gtm:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: dev.duckdb   # created on first run, in the project folder
+      threads: 4

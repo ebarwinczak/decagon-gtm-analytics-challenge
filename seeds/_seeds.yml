@@ -1,0 +1,162 @@
+version: 2
+
+seeds:
+  # ---------------------------------------------------------------------------
+  # Raw CRM extracts. Stand-ins for CRM tables that would be replicated daily in
+  # production. Read by the staging models; column meanings are documented there.
+  # ---------------------------------------------------------------------------
+  - name: account
+    description: >
+      Raw CRM account extract (Accounts.csv). One row per account, 3,000 rows.
+      Cleaned in stg_crm__account.
+
+    columns:
+      - name: account_id
+        description: "Unique account identifier."
+      - name: account_name
+        description: "Company name."
+      - name: segment
+        description: "Sales segment: Enterprise, Mid-Market or SMB."
+      - name: region
+        description: "The customer's region: NA, EMEA, APAC or LATAM."
+      - name: country
+        description: "The customer's country."
+      - name: industry
+        description: "The customer's industry."
+      - name: employee_count
+        description: "Number of employees."
+      - name: account_created_date
+        description: "Date the account was created in the CRM."
+
+  - name: opportunity
+    description: >
+      Raw CRM opportunity extract (Opps.csv). One row per opportunity, 4,722 rows,
+      current state only (no stage history). Cleaned in stg_crm__opportunity.
+
+    columns:
+      - name: opportunity_id
+        description: "Unique opportunity identifier."
+      - name: account_id
+        description: "Account the opportunity belongs to."
+      - name: opportunity_name
+        description: "Display name: \"<Account Name> - <Opportunity Type>\"."
+      - name: owner_id
+        description: "CRM user ID of the owning account executive (AE)."
+      - name: owner_name
+        description: "Name of the owning AE."
+      - name: owner_role
+        description: "AE role: AE - Enterprise, AE - Mid-Market or AE - SMB."
+      - name: owner_region
+        description: "The AE's region."
+      - name: opportunity_type
+        description: "New Business, Expansion or Pilot."
+      - name: lead_source
+        description: "Where the opportunity came from (7 values)."
+      - name: campaign
+        description: "Specific marketing program within the lead source. Blank for Outbound."
+      - name: amount
+        description: "Deal amount in local currency (renamed amount_local in staging)."
+      - name: currency
+        description: "USD, EUR or GBP."
+      - name: stage
+        description: "Current sales stage."
+      - name: forecast_category
+        description: "Pipeline, Best Case, Commit or Closed."
+      - name: probability
+        description: "Win probability, 0-100 (renamed probability_pct in staging)."
+      - name: created_date
+        description: "Date the opportunity was created."
+      - name: close_date
+        description: "Actual close date if closed; expected close date if open."
+      - name: last_activity_date
+        description: "Date of the most recent logged activity."
+      - name: is_closed
+        description: "True if Closed Won or Closed Lost."
+      - name: is_won
+        description: "True only for Closed Won."
+      - name: loss_reason
+        description: "Why the deal was lost. Blank unless Closed Lost."
+      - name: scoping_entered_date
+        description: "Date the deal entered Scoping. Blank if it never did."
+
+  # ---------------------------------------------------------------------------
+  # Business-owned lookups. Small reference tables RevOps can edit without SQL.
+  # ---------------------------------------------------------------------------
+  - name: lead_source_channels
+    description: >
+      Maps each CRM lead source to a reporting channel and its assumed owning team.
+      Customer Referral is kept as its own (fifth) channel; Paid Search rolls up to
+      Inbound. A new lead source in the CRM fails the staging relationship test
+      until it is added here.
+
+    columns:
+      - name: lead_source
+        description: "Original lead source value from the CRM."
+        data_tests:
+          - unique
+          - not_null
+
+      - name: channel
+        description: "GTM reporting channel: Outbound, Inbound, Events, Partners or Customer Referral."
+        data_tests:
+          - not_null
+
+      - name: channel_owner
+        description: "Team assumed to own the channel. Based on common B2B practice; to be confirmed with RevOps."
+        data_tests:
+          - not_null
+
+  - name: opportunity_stages
+    description: >
+      Stage order, display labels and open/closed classification, which the CRM data
+      doesn't provide. Order follows the CRM's fixed win probability, which rises with
+      each stage.
+
+    columns:
+      - name: stage
+        description: "Stage name exactly as it appears in the CRM."
+        data_tests:
+          - unique
+          - not_null
+
+      - name: stage_order
+        description: "1 (Discovery) to 6 (Negotiation); 7 for both Closed Won and Closed Lost."
+        data_tests:
+          - not_null
+
+      - name: stage_label
+        description: "Display label that sorts correctly as text (e.g. \"4. Pilot\")."
+        data_tests:
+          - not_null
+
+      - name: is_open
+        description: "True for the six open stages, false for Closed Won and Closed Lost."
+        data_tests:
+          - not_null
+
+  - name: fx_rates_monthly
+    description: >
+      Monthly USD exchange rates used to convert opportunity amounts to USD. Source:
+      FRED (Federal Reserve Bank of St. Louis) monthly averages, series EXUSEU and
+      EXUSUK, January 2023 to September 2026. USD rows are 1.0 so every deal joins
+      the same way.
+
+    columns:
+      - name: currency
+        description: "Currency code: USD, EUR or GBP."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['USD', 'EUR', 'GBP']
+
+      - name: rate_month
+        description: "First day of the month the rate applies to."
+        data_tests:
+          - not_null
+
+      - name: usd_rate
+        description: "USD per one unit of the currency (monthly average)."
+        data_tests:
+          - not_null
+          - positive_value

@@ -1,0 +1,56 @@
+name: 'decagon_gtm'
+version: '1.0.0'
+config-version: 2
+
+profile: 'decagon_gtm'
+
+model-paths: ["models"]
+analysis-paths: ["analysis"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+snapshot-paths: ["snapshots"]
+
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+# Global variables
+vars:
+  as_of_date: '2026-09-28' 
+
+# Model configurations
+models:
+  decagon_gtm:
+    staging:
+      +materialized: view
+      +schema: staging
+
+    intermediate:
+      +materialized: view
+      +schema: intermediate
+
+    mart:
+      +materialized: table
+      +schema: mart
+
+seeds:
+  decagon_gtm:
+    +schema: crm
+    +quote_columns: false
+
+    account:
+      +column_types:
+        account_id: varchar
+
+    opportunity:
+      +column_types:
+        opportunity_id: varchar
+        account_id: varchar
+
+    fx_rates_monthly:
+      +column_types:
+        currency: varchar
+        rate_month: date
+        usd_rate: decimal(18,6)

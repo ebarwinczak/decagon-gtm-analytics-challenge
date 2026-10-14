@@ -1,0 +1,173 @@
+version: 2
+
+models:
+  - name: stg_crm__account
+    description: >
+      Standardized CRM account records. One row per account (3,000 rows), including
+      accounts that have never had an opportunity. Light cleanup only: no business logic.
+
+    columns:
+      - name: account_id
+        description: "Unique identifier for each account (e.g. ACC-10000). Primary key."
+        data_tests:
+          - unique
+          - not_null
+
+      - name: account_name
+        description: "Company name."
+        data_tests:
+          - not_null
+
+      - name: segment
+        description: >
+          Sales segment assigned in the CRM: Enterprise, Mid-Market or SMB. Assigned by
+          the CRM rather than derived from employee count, so ranges overlap slightly.
+
+      - name: region
+        description: >
+          The customer's region: NA, EMEA, APAC or LATAM. Use this, not the AE's
+          owner_region, for customer geography.
+
+      - name: country
+        description: "The customer's country (14 countries)."
+
+      - name: industry
+        description: "The customer's industry (12 industries, e.g. Fintech, Healthcare)."
+
+      - name: employee_count
+        description: "Number of employees at the company."
+        data_tests:
+          - not_null
+
+      - name: account_created_date
+        description: "Date the account was created in the CRM."
+
+  - name: stg_crm__opportunity
+    description: >
+      Standardized CRM opportunity records. One row per opportunity (4,722 rows).
+      Current state only: each row shows where the deal stands now, with no history of
+      earlier stages. Light cleanup only: blank strings become null and the amount is
+      renamed to show it is in local currency.
+
+    columns:
+      - name: opportunity_id
+        description: "Unique identifier for each opportunity (e.g. OPP-50001). Primary key."
+        data_tests:
+          - unique
+          - not_null
+
+      - name: account_id
+        description: "Account the opportunity belongs to. Joins to stg_crm__account."
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_crm__account')
+                field: account_id
+
+      - name: opportunity_name
+        description: >
+          Display name in the form "<Account Name> - <Opportunity Type>". Not unique:
+          one account can have several opportunities of the same type.
+
+      - name: owner_id
+        description: "CRM user ID of the account executive (AE) who owns the deal."
+
+      - name: owner_name
+        description: "Name of the owning AE."
+
+      - name: owner_role
+        description: "AE role: AE - Enterprise, AE - Mid-Market or AE - SMB. Matches the account's segment."
+
+      - name: owner_region
+        description: >
+          The AE's region. Differs from the account's region on about 11% of deals
+          (e.g. an AE covering an account abroad), which is expected, not an error.
+
+      - name: opportunity_type
+        description: >
+          New Business (first purchase), Expansion (an existing customer buying more) or
+          Pilot (a paid trial).
+
+      - name: lead_source
+        description: >
+          Where the opportunity came from, as recorded in the CRM (7 values, e.g.
+          Outbound, Inbound - Website, Paid Search). Mapped to a reporting channel via
+          the lead_source_channels seed.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('lead_source_channels')
+                field: lead_source
+
+      - name: campaign
+        description: >
+          The specific marketing program within the lead source (e.g. "Website - Demo
+          Request"). Null for Outbound, which has no campaign.
+
+      - name: amount_local
+        description: >
+          Deal amount in the opportunity's own currency (USD, EUR or GBP). Do not sum
+          across currencies; use the USD columns in the intermediate layer instead.
+        data_tests:
+          - not_null
+
+      - name: currency
+        description: "Currency of amount_local: USD, EUR or GBP. EUR and GBP appear only on EMEA accounts."
+
+      - name: stage
+        description: >
+          Current sales stage. Open: Discovery, Scoping, Technical Validation, Pilot,
+          Proposal, Negotiation. Closed: Closed Won, Closed Lost. Stage order comes from
+          the opportunity_stages seed.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('opportunity_stages')
+                field: stage
+
+      - name: forecast_category
+        description: >
+          CRM forecast bucket: Pipeline (Discovery, Scoping), Best Case (Technical
+          Validation, Pilot), Commit (Proposal, Negotiation) or Closed. Fixed by stage in
+          this data.
+
+      - name: probability_pct
+        description: >
+          Win probability as a whole number from 0 to 100 (not a decimal). Fixed by stage
+          in this data: the CRM's default, not a rep's estimate.
+
+      - name: created_date
+        description: "Date the opportunity was created."
+        data_tests:
+          - not_null
+
+      - name: close_date
+        description: >
+          For closed deals, the actual close date. For open deals, the rep's expected
+          close date (a forecast, which can already be in the past).
+
+      - name: last_activity_date
+        description: "Date of the most recent logged activity. Equals close_date on closed deals."
+
+      - name: scoping_entered_date
+        description: >
+          Date the deal entered the Scoping stage, i.e. qualified past Discovery. Null
+          if it never got there (open Discovery deals and deals lost in Discovery).
+
+      - name: is_closed
+        description: "True if the deal is Closed Won or Closed Lost."
+        data_tests:
+          - not_null
+
+      - name: is_won
+        description: "True only for Closed Won deals."
+        data_tests:
+          - not_null
+
+      - name: loss_reason
+        description: >
+          Why the deal was lost (e.g. Lost to Competitor, Price, No Decision / Stalled).
+          Populated only on Closed Lost deals.

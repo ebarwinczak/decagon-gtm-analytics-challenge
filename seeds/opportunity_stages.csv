@@ -1,0 +1,9 @@
+stage,stage_order,stage_label,is_open
+Discovery,1,1. Discovery,true
+Scoping,2,2. Scoping,true
+Technical Validation,3,3. Technical Validation,true
+Pilot,4,4. Pilot,true
+Proposal,5,5. Proposal,true
+Negotiation,6,6. Negotiation,true
+Closed Won,7,Closed Won,false
+Closed Lost,7,Closed Lost,false

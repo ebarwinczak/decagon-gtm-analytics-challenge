@@ -1,0 +1,12 @@
+# dbt build output and the local DuckDB database (recreated by `dbt build`)
+target/
+dbt_packages/
+logs/
+*.duckdb
+*.duckdb.wal
+
+# Python virtual environment
+.venv/
+
+# macOS
+.DS_Store
